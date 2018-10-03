@@ -1,0 +1,6 @@
+authors = ["Paulo José Saiz Jabardo <pjabardo@gmail.com>"]
+name = "TreeAerodynamics"
+uuid = "89dbfb5e-c64e-11e8-3908-5f25992fe74e"
+version = "0.1.0"
+
+[deps]
