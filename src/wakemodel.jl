@@ -55,8 +55,8 @@ function vorticity(wake::WakeModel2d, x, y, Uoo=1.0)
     u0 = u0fun1(wake, xm)
     η = y/L0
     f = profile(η)
-
-    dudy = 2u0*log(2)*η*f / L0
+    γ = log(2)
+    dudy = 2u0*γ*η*f / L0
     dvdx = -y/4 * wake.θ * sqrt(wake.β/wake.α) * sqrt(2/(wake.θ*wake.β)) *
         (x - wake.x₀)^(-2.5) * f * (2γ*η^2 - 3)
 

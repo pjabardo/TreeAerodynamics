@@ -10,6 +10,8 @@ struct Wake2d
     yv::Matrix{Float64}
     Γ::Matrix{Float64}
     σ::Matrix{Float64}
+    A::Matrix{Float64}
+    ω::Matrix{Float64}
 end
 Base.Broadcast.broadcastable(w::Wake2d) = Ref(w)
 
@@ -28,10 +30,11 @@ function wake2d(w::WakeModel2d, x₁, η₁)
     xw = copy(x₁)
     γ = log(2)
     η₀ = copy(η₁) 
-    for k = 1:ny
-        η₀[k] = (η₁[k+1] + η₁[k]) / 2
-    end
-    
+    #for k = 1:ny
+    #    η₀[k] = (η₁[k+1] + η₁[k]) / 2
+    #end
+    a = zeros(ny, nx)
+    ww = zeros(ny, nx)
     for i in 1:nx
         xmean = (xw[i] + xw[i+1]) / 2
         δx = (xw[i+1] -  xw[i])
@@ -49,12 +52,14 @@ function wake2d(w::WakeModel2d, x₁, η₁)
             #ω = dvdx - dudy
             ω = -dudy
             A = δx * δy
+            a[k,i] = A
+            ww[k,i] = ω
             Γ[k,i] = ω*A
             σ[k,i] = min(δx, δy) / 12
         end
     end
 
-    return Wake2d(nx, ny, η₀, xw, yv, Γ, σ)
+    return Wake2d(nx, ny, η₀, xw, yv, Γ, σ, a, ww)
 end
 
 
