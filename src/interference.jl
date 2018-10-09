@@ -59,62 +59,79 @@ function inducevel(w::Wake2d, xw, yw, Uoo, x, y)
 end
 
 
-
-function branchvel!(wakes, branches, Ux, Uy, xw, yw, Uxo, Uyo, Uoo=1.0)
+function branchvel!(k, wakes, branches, Ux, Uy, xw, yw, uoofun)
     nb = length(wakes)
 
-    Uxo .= Uoo
-    Uyo .= 0.0
     
-    for i = 1:nb
-        uui = hypot(Ux[i], Uy[i])
-        for k = i+1:nb
-            du, dv = inducevel(wakes[i], xw[i], yw[i], uui, branches[k].xc, branches[k].yc)
-            Uxo[k] += du
-            Uyo[k] += dv
 
-            uuk = hypot(Ux[k], Uy[k])
-            du, dv = inducevel(wakes[k], xw[k], yw[k], uuk, branches[i].xc, branches[i].yc)
-            Uxo[i] += du
-            Uyo[i] += dv
+    D = branches[k].D
+    xc = branches[k].xc
+    yc = branches[k].yc
+
+    ξ = 3*D/8
+    w₁ = 0.111111111111
+    w₂ = 0.888888888889/4
+    
+    Uxo, Uyo = uoofun(xc, yc)
+    for i = 1:nb
+        if i != k
+            uui = hypot(Ux[i], Uy[i])
+        
+            du0, dv0 = inducevel(wakes[i], xw[i], yw[i], uui, xc, yc)
+            du1, dv1 = inducevel(wakes[i], xw[i], yw[i], uui, xc+ξ, yc)
+            du2, dv2 = inducevel(wakes[i], xw[i], yw[i], uui, xc-ξ, yc)
+            du3, dv3 = inducevel(wakes[i], xw[i], yw[i], uui, xc, yc+ξ)
+            du4, dv4 = inducevel(wakes[i], xw[i], yw[i], uui, xc, yc-ξ)
+            Uxo += w₁*du0 + w₂*(du1 + du2 + du3 + du4)
+            Uyo += w₁*dv0 + w₂*(dv1 + dv2 + dv3 + dv4)
+
         end
     end
-    
-end
-using PyPlot
-function wakedispl!(wakes, branches, Uoo, Ux, Uy, xw, yw, xwo, ywo)
 
+    return Uxo, Uyo
+end
+
+
+function wakedispl!(branch, wakes, Ux, Uy, xw, yw, xwo, ywo, uoofun)
+
+    
     nb = length(wakes)
-    for i = 1:nb
-        nw = length(xw[i])
-        xwi = xw[i]
-        ywi = yw[i]
-        xwoi = xwo[i]
-        ywoi = ywo[i]
-        sx, sy = versor(Ux[i], Uy[i])
-        xwoi[1] = branches[i].xc + sx * branches[i].D/2
-        ywoi[1] = branches[i].yc + sy * branches[i].D/2
+     
+    nw = length(xw[i])
+    xwi = xw[i]
+    ywi = yw[i]
+    sx, sy = versor(Ux[i], Uy[i])
+    uui = hypot(Ux[i], Uy[i])
+    xwo[1] = branch.xc + sx * branch.D/2
+    ywo[1] = branch.yc + sy * branch.D/2
         
-        for j = 1:nw-1
-            xx = (xwi[j+1] + xwi[j]) * 0.5
-            yy = (ywi[j+1] + ywi[j]) * 0.5
-            dx = (xwi[j+1] - xwi[j]) 
-            dy = (ywi[j+1] - ywi[j])
-            rr = hypot(dx, dy)
-            uu = Uoo
-            vv = 0.0
-            for k = 1:nb
-                if k != i
-                    uuk = hypot(Ux[k], Uy[k])
-                    du, dv = inducevel(wakes[k], xw[k], yw[k], uuk, xx, yy)
-                    uu += du
-                    vv += dv
+    for j = 1:nw-1
+        xx = (xwi[j+1] + xwi[j]) * 0.5
+        yy = (ywi[j+1] + ywi[j]) * 0.5
+        dx0 = branch.xw[j+1] - branch.xw[j]
+        
+        uu, vv = uoofun(xx, yy)
+        for k = 1:nb
+            if k != i
+                uuk = hypot(Ux[k], Uy[k])
+                du, dv = inducevel(wakes[k], xw[k], yw[k], uuk, xx, yy)
+                uu += du
+                vv += dv
                 end
             end
 
-            sx, sy = versor(uu, vv)
-            xwoi[j+1] = xwoi[j] + sx * rr
-            ywoi[j+1] = ywoi[j] + sy * rr
+        
+        sx, sy = versor(uu, vv)
+        
+        # Manter a distância entre pontos fixos
+        #xwo[j+1] = xwo[j] + sx * rr
+        #ywo[j+1] = ywo[j] + sy * rr
+        # Compensar a differença entre velocidades
+        uuinduced = hypot(uu, vv)
+        rr = dx0 * (1.0 + (uuinduced-uui) / uui) # Esta equação não é exata!
+        xwo[j+1] = xwo[j] + sx * rr 
+        ywo[j+1] = ywo[j] + sy * rr
+        
             
         end
     end
@@ -122,7 +139,7 @@ function wakedispl!(wakes, branches, Uoo, Ux, Uy, xw, yw, xwo, ywo)
         
 end
 
-#function inducevel(w::Wake2d, xw, yw, Uoo, x, y)
+
 
 function wakeinterference(wakes, branches; maxiter=20, err=1e-6, rlx=0.2, rlx2=0.05)
 
