@@ -58,6 +58,29 @@ function inducevel(w::Wake2d, xw, yw, Uoo, x, y)
 
 end
 
+function meanvelcontrib(branch, wake, uu, xw, yw)
+
+    D = branch.D
+    xc = branch.xc
+    yc = branch.yc
+
+    ξ = 3*D/8
+    w₁ = 0.111111111111
+    w₂ = 0.222222222222
+
+    du0, dv0 = inducevel(wake, xw, yw, uu, xc, yc)
+    du1, dv1 = inducevel(wake, xw, yw, uu, xc+ξ, yc)
+    du2, dv2 = inducevel(wake, xw, yw, uu, xc-ξ, yc)
+    du3, dv3 = inducevel(wake, xw, yw, uu, xc, yc+ξ)
+    du4, dv4 = inducevel(wake, xw, yw, uu, xc, yc-ξ)
+
+    du = w₁*du0 + w₂*(du1 + du2 + du3 + du4)
+    dv = w₁*dv0 + w₂*(dv1 + dv2 + dv3 + dv4)
+
+    return du, dv
+
+end
+
 
 function branchvel(k, wakes, branches, Ux, Uy, xw, yw, uoofun)
     nb = length(wakes)
@@ -76,14 +99,10 @@ function branchvel(k, wakes, branches, Ux, Uy, xw, yw, uoofun)
     for i = 1:nb
         if i != k
             uui = hypot(Ux[i], Uy[i])
-        
-            du0, dv0 = inducevel(wakes[i], xw[i], yw[i], uui, xc, yc)
-            du1, dv1 = inducevel(wakes[i], xw[i], yw[i], uui, xc+ξ, yc)
-            du2, dv2 = inducevel(wakes[i], xw[i], yw[i], uui, xc-ξ, yc)
-            du3, dv3 = inducevel(wakes[i], xw[i], yw[i], uui, xc, yc+ξ)
-            du4, dv4 = inducevel(wakes[i], xw[i], yw[i], uui, xc, yc-ξ)
-            Uxo += w₁*du0 + w₂*(du1 + du2 + du3 + du4)
-            Uyo += w₁*dv0 + w₂*(dv1 + dv2 + dv3 + dv4)
+
+            du, dv = meanvelcontrib(branches[k], wakes[i], uui, xw[i], yw[i])
+            Uxo += du
+            Uyo += dv
 
         end
     end
@@ -104,8 +123,8 @@ function wakedispl!(i, jinit, branch, wakes, Ux, Uy, xw, yw, xwo, ywo, uoofun)
 
     if jinit==1
         sx, sy = versor(Ux[i], Uy[i])
-        xwo[1] = branch.xc + sx * branch.D/2
-        ywo[1] = branch.yc + sy * branch.D/2
+        xwo[1] = branch.xc + sx * wakes[i].xw[1]
+        ywo[1] = branch.yc + sy * wakes[i].xw[1]
     else
         for j in 1:jinit-1
             xwo[j] = xwi[j]
@@ -120,13 +139,13 @@ function wakedispl!(i, jinit, branch, wakes, Ux, Uy, xw, yw, xwo, ywo, uoofun)
         
         uu, vv = uoofun(xx, yy)
         for k = 1:nb
-            if k != i
+            #if k != i
                 uuk = hypot(Ux[k], Uy[k])
                 du, dv = inducevel(wakes[k], xw[k], yw[k], uuk, xx, yy)
                 uu += du
                 vv += dv
-                end
-            end
+            #    end
+        end
 
         
         sx, sy = versor(uu, vv)
@@ -136,9 +155,15 @@ function wakedispl!(i, jinit, branch, wakes, Ux, Uy, xw, yw, xwo, ywo, uoofun)
         #ywo[j+1] = ywo[j] + sy * rr
         # Compensar a differença entre velocidades
         uuinduced = hypot(uu, vv)
-        rr = dx0 * (1.0 + (uuinduced-uui) / uui) # Esta equação não é exata!
-        xwo[j+1] = xwo[j] + sx * rr 
-        ywo[j+1] = ywo[j] + sy * rr
+        #rr = dx0 * (1.0 + (uuinduced-uui) / uui) # Esta equação não é exata!
+        rr = dx0
+        if j >= nw-1
+            xwo[j+1] = xwo[j] +  rr 
+            ywo[j+1] = ywo[j] 
+        else
+            xwo[j+1] = xwo[j] + sx * rr 
+            ywo[j+1] = ywo[j] + sy * rr
+        end
         
         
     end
@@ -146,45 +171,54 @@ end
     
         
 
+function lengthidx(xw, L)
+
+    n = length(xw)
+    idx = 1
+    for i = 1:n
+        idx = i
+        if xw[i] > L
+            break
+        end
+    end
+
+    return idx
+end
 
 
-
-function wakeinterference(wakes, branches, uoofun; maxiter=20, err=1e-6, rlx=0.02, Lerr=10.0)
+function wakeinterference!(nstart, nwakes, wakes, branches, xw, yw, xwo, ywo, Ux, Uy, uoofun; maxiter=30000, err=1e-3, rlx=0.002, rlxu=0.1, Lerr=10.0)
 
     
+    
 
-    nb = length(wakes)
+    nb = nwakes
 
-    xw = [wakes[i].xw .+ branches[i].xc for i in 1:nb]
-    yw = [fill(branches[i].yc, length(wakes[i].xw)) for i in 1:nb]
-
-    xwo = [wakes[i].xw .+ branches[i].xc for i in 1:nb]
-    ywo = [fill(branches[i].yc, length(wakes[i].xw)) for i in 1:nb]
-
-    Ux = zeros(nb)
-    Uy = zeros(nb)
-
+    wakes1 = wakes[1:nb]
+                   
+    maxxw = maximum((w.xw[end] for w in wakes1))
+    idxerr = [lengthidx(w.xw, Lerr) for w in wakes1]
+    
     for i = 1:nb
         Ux[i], Uy[i] = uoofun(branches[i].xc, branches[i].yc)
     end
     
-    Uxo = zeros(nb)
-    Uyo = zeros(nb)
     niter = 0
-    jinit = 1
+    jinit = ones(Int, nb)
+    
     for iter = 1:maxiter
         niter = iter
         # Compute the velocity at each branch
+        println("Chegou")
         errmax = 0.0
         for k = 1:nb
-            ux, uy = branchvel(k, wakes, branches, Ux, Uy, xw, yw, uoofun)
+            ux, uy = branchvel(k, wakes1, branches, Ux, Uy, xw, yw, uoofun)
             erru = max(maximum(abs, Ux[k]-ux), maximum(abs, Uy[k]-uy))
             if erru > errmax
                 errmax = erru
             end
             
-            Uxo[k] = ux
-            Uyo[k] = uy
+            Ux[k] = Ux[k] + rlxu * (ux - Ux[k])
+            Uy[k] = Uy[k] + rlxu * (uy - Uy[k])
         end
         #return (Uxo, Uyo)
         
@@ -195,20 +229,21 @@ function wakeinterference(wakes, branches, uoofun; maxiter=20, err=1e-6, rlx=0.0
 
         # Calculate the displacement of the wake:
 
-        for i = 1:nb
-            wakedispl!(i, jinit, branches[i], wakes, Ux, Uy, xw, yw, xwo[i], ywo[i], uoofun)
+        for i = nstart:nb
+            wakedispl!(i, jinit[i], branches[i], wakes1, Ux, Uy, xw, yw, xwo[i], ywo[i], uoofun)
         end
 
-        
-        Ux .= Uxo
-        Uy .= Uyo
 
         errmax2 = 0.0
         for i in 1:nb
-            errmax2 = max(errmax2, abs(xw[i][8] - xwo[i][8]), abs(yw[i][8] - ywo[i][8]))
+            errmax2 = max(errmax2, abs(xw[i][idxerr[i]] - xwo[i][idxerr[i]]),
+                          abs(yw[i][idxerr[i]] - ywo[i][idxerr[i]]))
         end
-        
-        println(iter, " - ", errmax, " - ", errmax2)
+
+        if mod(iter, 200)==0
+            println(iter, " - ", errmax, " - ", errmax2, " - ", idxerr[1])
+        end 
+            
         idx = 1:15
         for i in 1:nb
             xwi = xw[i]
@@ -228,13 +263,53 @@ function wakeinterference(wakes, branches, uoofun; maxiter=20, err=1e-6, rlx=0.0
         #sleep(2)
         #cla()
         
-        if errmax2 < err
-            break
+        if errmax2 < err * Lerr
+            if Lerr > maxxw
+                break
+            end
+            Lerr = 1.5*Lerr
+            jinit .= idxerr
+            idxerr .= [lengthidx(w.xw, Lerr) for w in wakes1]
+            println("==================================")
+            println(Lerr, " - ", jinit[1], " - ", idxerr[1])
+            
         end
         
         
     end
 
-    return Ux, Uy, xw, yw, niter
+    return niter
     
 end
+
+
+function wakeinterference(wakes, branches, uoofun; maxiter=30000, err=1e-6, rlx=0.2, rlxu=0.3, Lerr=10.0)
+
+    
+    
+
+    nb = length(wakes)
+
+    xw = [wakes[i].xw .+ branches[i].xc for i in 1:nb]
+    yw = [fill(branches[i].yc, length(wakes[i].xw)) for i in 1:nb]
+
+    xwo = [wakes[i].xw .+ branches[i].xc for i in 1:nb]
+    ywo = [fill(branches[i].yc, length(wakes[i].xw)) for i in 1:nb]
+
+    Ux = zeros(nb)
+    Uy = zeros(nb)
+    
+
+
+    for n = 2:nb
+        
+        wakeinterference!(n, wakes, branches, xw, yw, xwo, ywo, Ux, Uy, uoofun;
+                          maxiter=maxiter, err=err, rlx=rlx, rlxu=0.1, Lerr=10.0)
+        rlx = rlx * 0.8
+    end
+    
+    return Ux, Uy, xw, yw
+    
+end
+
+#function maketree(L, D, Cd

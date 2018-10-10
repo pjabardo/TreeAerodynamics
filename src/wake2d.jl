@@ -55,7 +55,7 @@ function wake2d(w::WakeModel2d, x₁, η₁)
             a[k,i] = A
             ww[k,i] = ω
             Γ[k,i] = ω*A
-            σ[k,i] = min(δx, δy) / 12
+            σ[k,i] = min(δx, δy) / 2
         end
     end
 
