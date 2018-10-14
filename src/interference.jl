@@ -316,6 +316,18 @@ function fixedwakeinterference(wakes, branches, uoofun; maxiter=30000, err=1e-6,
     Uxo = zeros(nb)
     Uyo = zeros(nb)
 
+    niter = fixedwakeinterference(wakes, branches, uoofun, Ux, Uy, Uxo, Uyo, xw, yw;
+                                  maxiter=maxiter, err=err, rlx=rlx)
+    
+   
+    return Ux, Uy, niter
+    
+end
+
+function fixedwakeinterference!(wakes, branches, uoofun, Ux, Uy, Uxo, Uyo, xw, yw;
+                                maxiter=30000, err=1e-6, rlx=0.2)
+
+    nb = length(wakes)
 
     for i = 1:nb
         Ux[i], Uy[i] = uoofun(branches[i].xc, branches[i].yc)
@@ -346,13 +358,45 @@ function fixedwakeinterference(wakes, branches, uoofun; maxiter=30000, err=1e-6,
         @. Ux = Ux + rlx * (Uxo - Ux)
         @. Uy = Uy + rlx * (Uyo - Uy)
         
-        if errmax < err
+        if errmax < err*umax
             break
         end
     end
     
-    return Ux, Uy, niter
+    return niter
     
 end
 
+
+
+function wakeinterf(branches, uoofun, xw, η; maxiter=1000, err=1e-6, rlx=0.2)
+
+    xc = [b.xc for b in branches]
+    yc = [b.yc for b in branches]
+    D  = [b.D  for b in branches]
+    Cdob = [b.Cd for b in branches]
+
+    nb = length(branches)
+
+    Ux = zeros(nb)
+    Uy = zeros(nb)
+    Uh = zeros(nb)
+    for i = 1:nb
+        Ux[i], Uy[i] = uoofun(xc[i], yc[i])
+        Uh[i] = hypot(Ux[i], Uy[i])
+    end
+    
+    for itercd = 1:maxiter
+        wm = [WakeModel2d(dragcoeff(branches[i], Uh[i]), diameter(branches[i])) for i = 1:nb]
+        wakes = [wake2d(w, xw, η) for w in wm]
+
+        
+        
+    end
+    
+end
+    
+    
+
+    
 #function maketree(L, D, Cd
