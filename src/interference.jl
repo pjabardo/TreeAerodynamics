@@ -85,16 +85,6 @@ end
 function branchvel(k, wakes, branches, Ux, Uy, xw, yw, uoofun)
     nb = length(wakes)
 
-    
-
-    D = branches[k].D
-    xc = branches[k].xc
-    yc = branches[k].yc
-
-    ξ = 3*D/8
-    w₁ = 0.111111111111
-    w₂ = 0.888888888889/4
-    
     Uxo, Uyo = uoofun(xc, yc)
     for i = 1:nb
         if i != k
@@ -309,6 +299,59 @@ function wakeinterference(wakes, branches, uoofun; maxiter=30000, err=1e-6, rlx=
     end
     
     return Ux, Uy, xw, yw
+    
+end
+
+
+function fixedwakeinterference(wakes, branches, uoofun; maxiter=30000, err=1e-6, rlx=0.2)
+
+    nb = length(wakes)
+
+    xw = [wakes[i].xw .+ branches[i].xc for i in 1:nb]
+    yw = [fill(branches[i].yc, length(wakes[i].xw)) for i in 1:nb]
+
+
+    Ux = zeros(nb)
+    Uy = zeros(nb)
+    Uxo = zeros(nb)
+    Uyo = zeros(nb)
+
+
+    for i = 1:nb
+        Ux[i], Uy[i] = uoofun(branches[i].xc, branches[i].yc)
+    end
+    uxmax = maximum(abs, Ux)
+    uymax = maximum(abs, Uy)
+
+    umax = hypot(uxmax, uymax)
+    
+    niter = 0
+    
+    for iter = 1:maxiter
+        
+        niter = iter
+        errmax = 0.0
+
+        for k = 1:nb
+            ux, uy = branchvel(k, wakes, branches, Ux, Uy, xw, yw, uoofun)
+            erru = max(maximum(abs, Ux[k]-ux), maximum(abs, Uy[k]-uy))
+            if erru > errmax
+                errmax = erru
+            end
+            Uxo[k] = ux
+            Uyo[k] = uy
+            
+        end
+        println(iter, "; ", errmax)
+        @. Ux = Ux + rlx * (Uxo - Ux)
+        @. Uy = Uy + rlx * (Uyo - Uy)
+        
+        if errmax < err
+            break
+        end
+    end
+    
+    return Ux, Uy, niter
     
 end
 
