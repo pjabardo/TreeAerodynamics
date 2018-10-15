@@ -316,7 +316,11 @@ function fixedwakeinterference(wakes, branches, uoofun; maxiter=30000, err=1e-6,
     Uxo = zeros(nb)
     Uyo = zeros(nb)
 
-    niter = fixedwakeinterference(wakes, branches, uoofun, Ux, Uy, Uxo, Uyo, xw, yw;
+    for i = 1:nb
+        Ux[i], Uy[i] = uoofun(branches[i].xc, branches[i].yc)
+    end
+    
+    niter = fixedwakeinterference!(wakes, branches, uoofun, Ux, Uy, Uxo, Uyo, xw, yw;
                                   maxiter=maxiter, err=err, rlx=rlx)
     
    
@@ -329,9 +333,6 @@ function fixedwakeinterference!(wakes, branches, uoofun, Ux, Uy, Uxo, Uyo, xw, y
 
     nb = length(wakes)
 
-    for i = 1:nb
-        Ux[i], Uy[i] = uoofun(branches[i].xc, branches[i].yc)
-    end
     uxmax = maximum(abs, Ux)
     uymax = maximum(abs, Uy)
 
@@ -369,49 +370,20 @@ end
 
 
 
-function wakeinterf(branches, uoofun, xw, η; maxiter=1000, err=1e-6, rlx=0.2)
 
-    xc = [b.xc for b in branches]
-    yc = [b.yc for b in branches]
-    D  = [b.D  for b in branches]
-    Cdob = [b.Cd for b in branches]
+
+
+function velinterference(branches::Vector{Branch2d{T}}, uoofun, x, η;
+                         maxiter=30000, err=1e-6, rlx=0.2) where {T <: DragType}
 
     nb = length(branches)
-
-    Ux = zeros(nb)
-    Uy = zeros(nb)
-    Uxo = zeros(nb)
-    Uyo = zeros(nb)
-    
-    Uh = zeros(nb)
-    for i = 1:nb
-        Ux[i], Uy[i] = uoofun(xc[i], yc[i])
-        Uh[i] = hypot(Ux[i], Uy[i])
-    end
-    
-    for itercd = 1:maxiter
-        wm = [WakeModel2d(dragcoeff(branches[i], Uh[i]), diameter(branches[i])) for i = 1:nb]
-        wakes = [wake2d(w, xw, η) for w in wm]
-
-        
-        
-    end
-    
-end
-    
-    
-
-
-
-function varcdinterference(branches, uoofun, x, η; maxiter=30000, err=1e-6, rlx=0.2)
-
-    nb = length(wakes)
     nw = length(x)
     xw = [x .+ branches[i].xc for i in 1:nb]
     yw = [fill(branches[i].yc, nw) for i in 1:nb]
     D = [diameter(b) for b in branches]
 
     Cd = zeros(nb)
+    
     Ux = zeros(nb)
     Uy = zeros(nb)
     Um = zeros(nb)
@@ -423,15 +395,24 @@ function varcdinterference(branches, uoofun, x, η; maxiter=30000, err=1e-6, rlx
         Ux[i], Uy[i] = uoofun(branches[i].xc, branches[i].yc)
         Um[i] = hypot(Ux[i], Uy[i])
     end
-    wm = Array{WakeModel2d,1}(nb)
-    wakes = Array{Wake2d,1}(nb)
+    wm = Array{WakeModel2d,1}(undef, nb)
+    wakes = Array{Wake2d,1}(undef, nb)
+    maxiter1 = maxiter
+
+    if T==Float64
+        maxiter1 = 1
+    end
     
-    for iter = 1:maxiter
+    for iter = 1:maxiter1
+        println("============================================")
+        println("CD iter: ", iter)
+        
         for i = 1:nb
             
-            Cd[i] = dragcoeff(branches[i], Um[i])
-            wm[i] = WakeModel2d(Cd[i], D[i])
+            Cd[i,iter] = dragcoeff(branches[i], Um[i])
+            wm[i] = WakeModel2d(Cd[i,iter], D[i])
             wakes[i] = wake2d(wm[i], x, η)
+
         end
         
         niter = fixedwakeinterference!(wakes, branches, uoofun, Ux, Uy, Uxo, Uyo, xw, yw;
@@ -442,9 +423,9 @@ function varcdinterference(branches, uoofun, x, η; maxiter=30000, err=1e-6, rlx
         if errmax < err
             break
         end
-        
+        println(iter, "; ", errmax)
     end   
-    @. Cd = dragcoeff(branches, Um)
+    #@. Cd = dragcoeff(branches, Um)
     
     return Ux, Uy, Cd
     

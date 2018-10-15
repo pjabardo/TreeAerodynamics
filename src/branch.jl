@@ -1,5 +1,5 @@
 
-DragType = Union{Float64,DragCoeff}
+DragType = Union{Float64,AbstractDrag}
 
 
 """
