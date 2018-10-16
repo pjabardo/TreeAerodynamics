@@ -20,6 +20,7 @@ struct Branch2d{CDTYPE <: DragType}
     yc::Float64
     #Branch2d(D, Cd, xc, yc) = new{CDTYPE}(D, Cd, xc, yc)
 end
+Base.Broadcast.broadcastable(br::Branch2d) = Ref(br)
 
 
 #Branch2d(D, Cd::Float64, xc, yc) = Branch2d{Float64}(D, Cd, xc, yc)

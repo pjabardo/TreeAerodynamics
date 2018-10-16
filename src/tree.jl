@@ -68,7 +68,7 @@ end
 
 diameter(h::HexagonTree) = h.D * 3^(h.level)
 
-function equivdrag(branches, Ux, Uy, Lref=1.0)
+function force(branches, Ux, Uy, ρ=1.2)
 
     Um = hypot.(Ux, Uy)
 
@@ -82,14 +82,21 @@ function equivdrag(branches, Ux, Uy, Lref=1.0)
     nb = length(Um)
 
     for i = 1:nb
-        fi = Cd * Um[i]^2
+        D = diameter(branches)
+        fi = 0.5 * ρ * Cd * D * Um[i]^2
         
-        Fx += fi*cα
-        Fy += fi*sα
+        Fx += fi*cα[i]
+        Fy += fi*sα[i]
     end
 
-    return Fx/Lref, Fy/Lref
+    return Fx, Fy
 end
+
+function forcecoeff(branches, Ux, Uy, Uoo, Lref)
+
+
+end
+
 
         
     

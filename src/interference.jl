@@ -85,9 +85,10 @@ end
 function branchvel(k, wakes, branches, Ux, Uy, xw, yw, uoofun)
     nb = length(wakes)
 
-    Uxo, Uyo = uoofun(xc, yc)
+    Uxo, Uyo = uoofun(branches[k].xc, branches[k].yc)
     for i = 1:nb
-        if i != k
+        if i != k && Ux[i] > 0  # Does not deal with recirculation...
+            
             uui = hypot(Ux[i], Uy[i])
 
             du, dv = meanvelcontrib(branches[k], wakes[i], uui, xw[i], yw[i])
@@ -303,7 +304,7 @@ function wakeinterference(wakes, branches, uoofun; maxiter=30000, err=1e-6, rlx=
 end
 
 
-function fixedwakeinterference(wakes, branches, uoofun; maxiter=30000, err=1e-6, rlx=0.2)
+function fixedwakeinterference(wakes, branches, uoofun; maxiter=30000, err=1e-5, rlx=0.2)
 
     nb = length(wakes)
 
@@ -329,7 +330,7 @@ function fixedwakeinterference(wakes, branches, uoofun; maxiter=30000, err=1e-6,
 end
 
 function fixedwakeinterference!(wakes, branches, uoofun, Ux, Uy, Uxo, Uyo, xw, yw;
-                                maxiter=30000, err=1e-6, rlx=0.2)
+                                maxiter=30000, err=1e-5, rlx=0.2)
 
     nb = length(wakes)
 
@@ -355,11 +356,15 @@ function fixedwakeinterference!(wakes, branches, uoofun, Ux, Uy, Uxo, Uyo, xw, y
             Uyo[k] = uy
             
         end
-        println(iter, "; ", errmax)
+        if mod(iter,10)==0
+            println(iter, "; ", errmax)
+        end
+        
         @. Ux = Ux + rlx * (Uxo - Ux)
         @. Uy = Uy + rlx * (Uyo - Uy)
         
         if errmax < err*umax
+            println("Converged: ", iter, "; ", errmax/umax)
             break
         end
     end
@@ -373,8 +378,11 @@ end
 
 
 
+
+
 function velinterference(branches::Vector{Branch2d{T}}, uoofun, x, η;
-                         maxiter=30000, err=1e-6, rlx=0.2) where {T <: DragType}
+                          maxiter=30000, err=1e-5, rlx=0.2,
+                          Uxinit=nothing, Uyinit=nothing) where {T <: DragType}
 
     nb = length(branches)
     nw = length(x)
@@ -383,18 +391,34 @@ function velinterference(branches::Vector{Branch2d{T}}, uoofun, x, η;
     D = [diameter(b) for b in branches]
 
     Cd = zeros(nb)
+    Cd2 = zeros(nb)
     
     Ux = zeros(nb)
     Uy = zeros(nb)
+
     Um = zeros(nb)
     Um2 = zeros(nb)
-    Uxo = zeros(nb)
-    Uyo = zeros(nb)
 
     for i = 1:nb
         Ux[i], Uy[i] = uoofun(branches[i].xc, branches[i].yc)
+    end
+    
+    if Uxinit != nothing
+        Ux .= Uxinit
+    end
+    if Uyinit != nothing
+        Uy .= Uyinit
+    end
+
+    for i = 1:nb
         Um[i] = hypot(Ux[i], Uy[i])
     end
+        
+
+    
+    Uxo = zeros(nb)
+    Uyo = zeros(nb)
+
     wm = Array{WakeModel2d,1}(undef, nb)
     wakes = Array{Wake2d,1}(undef, nb)
     maxiter1 = maxiter
@@ -402,28 +426,39 @@ function velinterference(branches::Vector{Branch2d{T}}, uoofun, x, η;
     if T==Float64
         maxiter1 = 1
     end
+
+    for i = 1:nb
+        Cd2[i] = dragcoeff(branches[i], Um[i])
+    end
     
+    lastiter = false
     for iter = 1:maxiter1
         println("============================================")
         println("CD iter: ", iter)
         
         for i = 1:nb
             
-            Cd[i,iter] = dragcoeff(branches[i], Um[i])
-            wm[i] = WakeModel2d(Cd[i,iter], D[i])
+            Cd[i] = Cd2[i]
+            wm[i] = WakeModel2d(Cd[i], D[i])
             wakes[i] = wake2d(wm[i], x, η)
 
         end
-        
+
+        err1 = lastiter ? err : err*100
         niter = fixedwakeinterference!(wakes, branches, uoofun, Ux, Uy, Uxo, Uyo, xw, yw;
-                                       maxiter=maxiter, err=err, rlx=rlx)
+                                       maxiter=maxiter, err=err1, rlx=rlx)
         @. Um2 = hypot(Ux, Uy)
-        errmax = maximum(abs, (Um2[i] - Um[i] for i = 1:nb))
-        Um .= Um2
-        if errmax < err
+        @. Cd2 = dragcoeff(branches, Um2)
+         
+        #display(hcat(Um, Cd, Um2, Cd2))
+        errmax = maximum(abs, (Cd2[i] - Cd[i] for i = 1:nb))
+        if lastiter
             break
+        elseif errmax < err
+            lastiter = true
         end
-        println(iter, "; ", errmax)
+        
+        println("CD Iteration: ", iter, "; ", errmax)
     end   
     #@. Cd = dragcoeff(branches, Um)
     
