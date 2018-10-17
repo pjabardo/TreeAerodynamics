@@ -68,35 +68,56 @@ end
 
 diameter(h::HexagonTree) = h.D * 3^(h.level)
 
-function force(branches, Ux, Uy, ρ=1.2)
 
-    Um = hypot.(Ux, Uy)
+function forcetot(branches, Ux, Uy, ρ=1.2)
 
-    Cd = dragcoeff.(branches, Um)
-    α = atan(Uy, Ux)
-    cα = cos.(α)
-    sα = sin.(α)
     Fx = 0.0
     Fy = 0.0
-
-    nb = length(Um)
-
+    nb = length(branches)
     for i = 1:nb
-        D = diameter(branches)
-        fi = 0.5 * ρ * Cd * D * Um[i]^2
+        ux = Ux[i]
+        uy = Uy[i]
+        U = hypot(ux, uy)
+        Cd = dragcoeff(branches[i], U)
+        D = diameter(branches[i])
+        α = atan(uy, ux)
+        cα = cos(α)
+        sα = sin(α)
+        fi = 0.5 * ρ * Cd * D * U^2
         
-        Fx += fi*cα[i]
-        Fy += fi*sα[i]
+        Fx += fi*cα
+        Fy += fi*sα
     end
 
     return Fx, Fy
 end
 
-function forcecoeff(branches, Ux, Uy, Uoo, Lref)
+function force(branch, ux, uy, ρ=1.2)
 
+    U = hypot(ux, uy)
+    Cd = dragcoeff(branch, U)
+    D = diameter(branch)
+    α = atan(uy, ux)
+    cα = cos(α)
+    sα = sin(α)
+    fi = 0.5 * ρ * Cd * D * U^2
+        
+    Fx = fi*cα
+    Fy = fi*sα
+    
 
+    return Fx, Fy
 end
 
+
+function forcecoef(branches, Ux, Uy, Uoo, Lref)
+    ρ = 1.0
+    Fx, Fy = forcetot(branches, Ux, Uy, 1.0)
+    CFx = Fx / (0.5 * ρ * Lref * Uoo^2)
+    CFy = Fy / (0.5 * ρ * Lref * Uoo^2)    
+    
+    return CFx, CFy
+end
 
         
     

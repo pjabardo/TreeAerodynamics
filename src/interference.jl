@@ -467,3 +467,28 @@ function velinterference(branches::Vector{Branch2d{T}}, uoofun, x, η;
 end
 
 #function maketree(L, D, Cd
+
+function simulatevels(branches, Uoo, x, η; err=1e-5, rlx=0.2)
+    
+    nu = length(Uoo)
+    nb = length(branches)
+    drag = []
+    
+    println("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
+    println("Vel: ", Uoo[1])
+    push!(drag, velinterference(branches, (x,y)->(Uoo[1], 0.0), x, η; err=err, rlx=rlx))
+    
+    for i = 2:nu
+    println("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
+    println("Vel: ", Uoo[i])
+        fun = (x,y) -> (Uoo[i], 0.0)
+        Ux = drag[i-1][1] .* Uoo[i]/Uoo[i-1]
+        Uy = drag[i-1][1] .* Uoo[i]/Uoo[i-1]
+        rlx = min(0.5, rlx*1.5)
+        push!(drag, velinterference(branches, fun, x, η, err=err, rlx=rlx, Uxinit=Ux, Uyinit=Uy))
+    end
+    
+    return drag
+    
+    
+end
