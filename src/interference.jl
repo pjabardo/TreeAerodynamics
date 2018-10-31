@@ -1,7 +1,17 @@
 
 
 
+"""
+   inducevel(w, xw, yw, Uoo, x, y)
 
+Calculate the induced velocity of a wake on the point (x,y)
+
+ * `w::Wake2d` Wake inducing the velocity
+ * `xw` and `yw` Position of the wake's center line
+ * `Uoo` velocity at the body generating the wake
+ * `x` and `y` Position where the velocity is to be calculated
+
+"""
 function inducevel(w::Wake2d, xw, yw, Uoo, x, y)
 
     nx = w.nx
@@ -58,6 +68,14 @@ function inducevel(w::Wake2d, xw, yw, Uoo, x, y)
 
 end
 
+"""
+    meanvelcontrib(branch, wake, uu, xw, yw)
+
+Given a tree branch, this function calculates the mean
+induced velocity within the branch. The function
+uses a two point Gauss-Radau quadrature rule to compute
+the mean along 4 radius of the 
+"""
 function meanvelcontrib(branch, wake, uu, xw, yw)
 
     D = branch.D
