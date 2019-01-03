@@ -1,4 +1,8 @@
+"""
+    DragType
 
+The drag can be either constant or vary with wind speed
+"""
 DragType = Union{Float64,AbstractDrag}
 
 
@@ -6,6 +10,12 @@ DragType = Union{Float64,AbstractDrag}
     Branch2d(D, Cd, xc, yc)
 
 Represents the main characteristics of a tree branch (or any other body actually)
+ 
+ * `D` Diameter of the branch
+ * `Cd` Branch drag
+ * `xc` X Position of the branch center
+ * `yc` Y Position of the branch center
+
 
 """
 

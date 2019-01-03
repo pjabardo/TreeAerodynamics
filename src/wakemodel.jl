@@ -4,7 +4,9 @@ abstract type AbstractWakeModel end
 abstract type AbstractWakeModel2d <: AbstractWakeModel end
 
 """
+    WakeModel2d(Cd, D, ηlim=2.0, α=0.7231, β=0.1859)
 
+Implements a self similar
 """
 struct WakeModel2d <: AbstractWakeModel2d
     Cd::Float64

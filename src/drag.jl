@@ -33,8 +33,14 @@ dragcoeff(c::Number, U) = c
 struct DragPowerLaw <: AbstractDrag
     Cd1::Float64
     p::Float64
+    Umin::Float64
+end
+DragPowerLaw(cd, p, umin=0.0) = DragPowerLaw(cd, p, umin)
+Base.Broadcast.broadcastable(cd::DragPowerLaw) = Ref(cd)
+
+function dragcoeff(c::DragPowerLaw, U=5.0)
+    uu = U > c.Umin ? U : c.Umin
+    return c.Cd1 * uu ^ c.p
 end
 
-dragcoeff(c::DragPowerLaw, U=5.0) = c.Cd1 * U^c.p
-Base.Broadcast.broadcastable(cd::DragPowerLaw) = Ref(cd)
     
